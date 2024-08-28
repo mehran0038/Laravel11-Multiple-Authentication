@@ -1,0 +1,144 @@
+composer create-project laravel/laravel MultiAuth
+
+php artisan make:migration add_to_users_table
+
+Edit add_to_users_table.php file from database/migrations/ folder and add field in it; something like this:
+ public function up(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->tinyInteger('type')->default(1); // 1 = User, 2 = Admin
+        });
+    }
+
+    php artisan migrate
+
+Now Edit DatabaseSeeder.php file from database/seeders/ folder and add the following method into it:
+
+public function run(): void
+    {
+        $users = [
+            [
+               'name'=>'Admin User',
+               'email'=>'admin@tutsmake.com',
+               'type'=>2,
+               'password'=> bcrypt('123456'),
+            ],
+            [
+               'name'=>'User',
+               'email'=>'user@tutsmake.com',
+               'type'=>1,
+               'password'=> bcrypt('123456'),
+            ],
+        ];
+    
+        foreach ($users as $key => $user) {
+            User::create($user);
+        }
+    }
+
+
+    php artisan db:seed --class=DatabaseSeeder
+
+
+Edit user.php model from app/Models folder, and add the following code in it:
+
+<?php
+  
+namespace App\Models;
+  
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+
+class User extends Authenticatable
+{
+    use HasFactory, Notifiable;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array
+     */
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'type'
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array
+     */
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+
+    /**
+     * Interact with the user's first name.
+     *
+     * @param  string  $value
+     * @return \Illuminate\Database\Eloquent\Casts\Attribute
+     */
+protected function type(): Attribute
+{
+    return new Attribute(
+        get: fn ($value) =>  $value == 2 ? "admin" : "user",
+    );
+}
+
+}
+
+composer require laravel/ui 
+
+php artisan ui bootstrap --auth 
+npm install
+npm run build
+
+php artisan make:middleware AccessLevel
+
+Edit AccessLevel.php file from app/Http/Middleware/ folder and write a logic in it to handle HTTP requests by user access level:
+<?php
+  
+namespace App\Http\Middleware;
+  
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class AccessLevel
+{
+    /**
+     * Handle an incoming request.
+     *
+     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     */
+    public function handle(Request $request, Closure $next, $userType): Response
+    {
+        if(auth()->user()->type == $userType){
+            return $next($request);
+        }
+          
+        return response()->json(['You do not have permission to access for this page.']);
+    }
+}
+
+
+Next register AccessLevel middleware in bootstrap/app.php file; something like this:
+
